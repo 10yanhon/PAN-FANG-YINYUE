@@ -15,18 +15,18 @@
     {
       "name": "kg音乐",
       "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/kg.js",
-      "version": "2025.10.01"
+      "version": "0.2.2"
     },
     
     {
       "name": "kw音乐",
       "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/kw.js",
-      "version": "2025.09.16"
+      "version": "0.2.2"
     
     {
       "name": "wy音乐",
       "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/wy.js",
-      "version": "2025.09.14"
+      "version": "0.2.2"
     }
   ]
 }
