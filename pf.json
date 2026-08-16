@@ -10,32 +10,23 @@
     {
       "name": "qq音乐",
       "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/qq.js",
-      "version": "0.0.2"
+      "version": "0.2.2"
     },
     {
       "name": "kg音乐",
       "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/kg.js",
-      "version": "0.0.2"
+      "version": "2025.10.01"
     },
-    {
-      "name": "小芸音乐",
-      "url": "https://gitee.com/kevinr/tvbox/raw/master/musicfree/plugins/xiaoyun.js",
-      "version": "0.0.2"
-    },
-    {
-      "name": "小蜜音乐",
-      "url": "https://gitee.com/kevinr/tvbox/raw/master/musicfree/plugins/xiaomi.js",
-      "version": "0.0.2"
-    },
+    
     {
       "name": "kw音乐",
       "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/kw.js",
-      "version": "0.0.2"
+      "version": "2025.09.16"
     
     {
-      "name": "W音乐",
-      "url": "https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/wy.js",
-      "version": "0.2.3"
+      "name": "wy音乐",
+      "url": "https://raw.githubusercontent.com/10yanhon/PAN-FANG-YINYUE/refs/heads/main/wy.js",
+      "version": "2025.09.14"
     }
   ]
 }
