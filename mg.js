@@ -1,56 +1,106 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+
 const axios_1 = require("axios");
 const CryptoJs = require("crypto-js");
 const he = require("he");
+
 const pageSize = 20;
 
+/* =========================
+ * 歌曲格式化
+ * ========================= */
 function formatMusicItem(_) {
     var _a, _b, _c;
-    const albumid = _.albumid || ((_a = _.album) === null || _a === void 0 ? void 0 : _a.id);
-    const albummid = _.albummid || ((_b = _.album) === null || _b === void 0 ? void 0 : _b.mid);
-    const albumname = _.albumname || ((_c = _.album) === null || _c === void 0 ? void 0 : _c.title);
+
+    const albumid =
+        _.albumid ||
+        ((_a = _.album) === null || _a === void 0 ? void 0 : _a.id);
+
+    const albummid =
+        _.albummid ||
+        ((_b = _.album) === null || _b === void 0 ? void 0 : _b.mid);
+
+    const albumname =
+        _.albumname ||
+        ((_c = _.album) === null || _c === void 0 ? void 0 : _c.title);
+
     return {
-        isVip: (_.pay && (_.pay.pay_play === 0 || _.pay.payplay === 0)) ? "0" : "1",
+        isVip:
+            _.pay &&
+            (_.pay.pay_play === 0 || _.pay.payplay === 0)
+                ? "0"
+                : "1",
+
         id: _.id || _.songid,
+
         songmid: _.mid || _.songmid,
+
         title: _.title || _.songname,
+
         artist: _.singer.map((s) => s.name).join(", "),
+
         artwork: albummid
             ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg`
             : undefined,
+
         album: albumname,
+
         lrc: _.lyric || undefined,
+
         albumid: albumid,
+
         albummid: albummid,
     };
 }
 
+/* =========================
+ * 专辑格式化
+ * ========================= */
 function formatAlbumItem(_) {
     return {
         id: _.albumID || _.albumid,
+
         albumMID: _.albumMID || _.album_mid,
+
         title: _.albumName || _.album_name,
-        artwork: _.albumPic ||
+
+        artwork:
+            _.albumPic ||
             `https://y.gtimg.cn/music/photo_new/T002R300x300M000${_.albumMID || _.album_mid}.jpg`,
+
         date: _.publicTime || _.pub_time,
+
         singerID: _.singerID || _.singer_id,
+
         artist: _.singerName || _.singer_name,
+
         singerMID: _.singerMID || _.singer_mid,
+
         description: _.desc,
     };
 }
 
+/* =========================
+ * 歌手格式化
+ * ========================= */
 function formatArtistItem(_) {
     return {
         name: _.singerName,
+
         id: _.singerID,
+
         singerMID: _.singerMID,
+
         avatar: _.singerPic,
+
         worksNum: _.songNum,
     };
 }
 
+/* =========================
+ * 搜索类型
+ * ========================= */
 const searchTypeMap = {
     0: "song",
     2: "album",
@@ -60,680 +110,1463 @@ const searchTypeMap = {
     12: "mv",
 };
 
+/* =========================
+ * 搜索专用请求头
+ * ========================= */
 const searchHeaders = {
     referer: "https://y.qq.com/",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+
+    "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+
     Cookie: "qm_keyst=; uin=;",
 };
 
+/* =========================
+ * 第一文件原有请求头
+ * ========================= */
 const headers = {
     referer: "https://y.qq.com",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+
+    "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+
     Cookie: "uin=",
 };
 
+/* =========================
+ * VIP过滤
+ * ========================= */
 const validSongFilter = (item) => {
-    return item.pay.pay_play === 0 || item.pay.payplay === 0;
+    return (
+        item.pay.pay_play === 0 ||
+        item.pay.payplay === 0
+    );
 };
 
+/* =========================
+ * 搜索核心
+ *
+ * 这一段保持上一版能正常搜索的逻辑
+ * ========================= */
 async function searchBase(query, page, type) {
-    const res = (await (0, axios_1.default)({
-        url: "https://u.y.qq.com/cgi-bin/musicu.fcg",
-        method: "POST",
-        data: {
-            req_1: {
-                method: "DoSearchForQQMusicDesktop",
-                module: "music.search.SearchCgiService",
-                param: {
-                    num_per_page: pageSize,
-                    page_num: page,
-                    query: query,
-                    search_type: type,
+    const res = (
+        await (0, axios_1.default)({
+            url:
+                "https://u.y.qq.com/cgi-bin/musicu.fcg",
+
+            method: "POST",
+
+            data: {
+                req_1: {
+                    method:
+                        "DoSearchForQQMusicDesktop",
+
+                    module:
+                        "music.search.SearchCgiService",
+
+                    param: {
+                        num_per_page:
+                            pageSize,
+
+                        page_num:
+                            page,
+
+                        query:
+                            query,
+
+                        search_type:
+                            type,
+                    },
                 },
             },
-        },
-        headers: searchHeaders,
-        xsrfCookieName: "XSRF-TOKEN",
-        withCredentials: true,
-    })).data;
 
-    const req1 = res && res.req_1;
-    const data = req1 && req1.data;
-    const body = data && data.body;
-    const key = searchTypeMap[type];
-    const result = key && body ? body[key] : undefined;
-    const list = result && (result.list || result.itemlist || result.data || []);
-    const total = data && data.meta && Number(data.meta.sum);
+            headers:
+                searchHeaders,
+
+            xsrfCookieName:
+                "XSRF-TOKEN",
+
+            withCredentials:
+                true,
+        })
+    ).data;
+
+    const req1 =
+        res &&
+        res.req_1;
+
+    const data =
+        req1 &&
+        req1.data;
+
+    const body =
+        data &&
+        data.body;
+
+    const key =
+        searchTypeMap[type];
+
+    const result =
+        key && body
+            ? body[key]
+            : undefined;
+
+    const list =
+        result &&
+        (
+            result.list ||
+            result.itemlist ||
+            result.data ||
+            []
+        );
+
+    const total =
+        data &&
+        data.meta &&
+        Number(data.meta.sum);
 
     if (!Array.isArray(list)) {
         return {
-            isEnd: true,
-            data: [],
+            isEnd:
+                true,
+
+            data:
+                [],
         };
     }
 
     return {
-        isEnd: Number.isFinite(total)
-            ? total <= page * pageSize
-            : list.length < pageSize,
-        data: list,
+        isEnd:
+            Number.isFinite(total)
+                ? total <=
+                  page * pageSize
+                : list.length <
+                  pageSize,
+
+        data:
+            list,
     };
 }
 
+/* =========================
+ * 搜歌曲
+ *
+ * 注意：这一段保持能搜歌版本
+ * 这里只增加搜索标记和原始 songmid
+ * ========================= */
 async function searchMusic(query, page) {
-    const songs = await searchBase(query, page, 0);
+    const songs =
+        await searchBase(
+            query,
+            page,
+            0
+        );
+
     return {
-        isEnd: songs.isEnd,
-        data: songs.data.map((item) => Object.assign({}, formatMusicItem(item), {
-            isSearchResult: true,
-            searchSongMid: item.mid || item.songmid,
-        })),
+        isEnd:
+            songs.isEnd,
+
+        data:
+            songs.data.map(
+                (item) =>
+                    Object.assign(
+                        {},
+                        formatMusicItem(item),
+                        {
+                            isSearchResult:
+                                true,
+
+                            searchSongMid:
+                                item.mid ||
+                                item.songmid,
+                        }
+                    )
+            ),
     };
 }
 
+/* =========================
+ * 搜专辑
+ * ========================= */
 async function searchAlbum(query, page) {
-    const albums = await searchBase(query, page, 2);
+    const albums =
+        await searchBase(
+            query,
+            page,
+            2
+        );
+
     return {
-        isEnd: albums.isEnd,
-        data: albums.data.map(formatAlbumItem),
+        isEnd:
+            albums.isEnd,
+
+        data:
+            albums.data.map(
+                formatAlbumItem
+            ),
     };
 }
 
+/* =========================
+ * 搜歌手
+ * ========================= */
 async function searchArtist(query, page) {
-    const artists = await searchBase(query, page, 1);
+    const artists =
+        await searchBase(
+            query,
+            page,
+            1
+        );
+
     return {
-        isEnd: artists.isEnd,
-        data: artists.data.map(formatArtistItem),
+        isEnd:
+            artists.isEnd,
+
+        data:
+            artists.data.map(
+                formatArtistItem
+            ),
     };
 }
 
+/* =========================
+ * 搜歌单
+ * ========================= */
 async function searchMusicSheet(query, page) {
-    const musicSheet = await searchBase(query, page, 3);
+    const musicSheet =
+        await searchBase(
+            query,
+            page,
+            3
+        );
+
     return {
-        isEnd: musicSheet.isEnd,
-        data: musicSheet.data.map((item) => ({
-            title: item.dissname,
-            createAt: item.createtime,
-            description: item.introduction,
-            playCount: item.listennum,
-            worksNums: item.song_count,
-            artwork: item.imgurl,
-            id: item.dissid,
-            artist: item.creator && item.creator.name,
-        })),
+        isEnd:
+            musicSheet.isEnd,
+
+        data:
+            musicSheet.data.map(
+                (item) => ({
+                    title:
+                        item.dissname,
+
+                    createAt:
+                        item.createtime,
+
+                    description:
+                        item.introduction,
+
+                    playCount:
+                        item.listennum,
+
+                    worksNums:
+                        item.song_count,
+
+                    artwork:
+                        item.imgurl,
+
+                    id:
+                        item.dissid,
+
+                    artist:
+                        item.creator &&
+                        item.creator.name,
+                })
+            ),
     };
 }
 
+/* =========================
+ * 搜歌词
+ * ========================= */
 async function searchLyric(query, page) {
-    const songs = await searchBase(query, page, 7);
+    const songs =
+        await searchBase(
+            query,
+            page,
+            7
+        );
+
     return {
-        isEnd: songs.isEnd,
-        data: songs.data.map((it) => (Object.assign(Object.assign({}, formatMusicItem(it)), {
-            rawLrcTxt: it.content
-        }))),
+        isEnd:
+            songs.isEnd,
+
+        data:
+            songs.data.map(
+                (it) =>
+                    Object.assign(
+                        Object.assign(
+                            {},
+                            formatMusicItem(it)
+                        ),
+                        {
+                            rawLrcTxt:
+                                it.content,
+                        }
+                    )
+            ),
     };
 }
 
-function getQueryFromUrl(key, search) {
+/* =========================
+ * URL参数
+ * ========================= */
+function getQueryFromUrl(
+    key,
+    search
+) {
     try {
-        const sArr = search.split("?");
+        const sArr =
+            search.split("?");
+
         let s = "";
-        if (sArr.length > 1) {
-            s = sArr[1];
+
+        if (
+            sArr.length >
+            1
+        ) {
+            s =
+                sArr[1];
         }
         else {
-            return key ? undefined : {};
+            return key
+                ? undefined
+                : {};
         }
-        const querys = s.split("&");
-        const result = {};
-        querys.forEach((item) => {
-            const temp = item.split("=");
-            result[temp[0]] = decodeURIComponent(temp[1]);
-        });
-        return key ? result[key] : result;
+
+        const querys =
+            s.split("&");
+
+        const result =
+            {};
+
+        querys.forEach(
+            (item) => {
+                const temp =
+                    item.split("=");
+
+                result[
+                    temp[0]
+                ] =
+                    decodeURIComponent(
+                        temp[1]
+                    );
+            }
+        );
+
+        return key
+            ? result[key]
+            : result;
     }
     catch (err) {
-        return key ? "" : {};
+        return key
+            ? ""
+            : {};
     }
 }
 
-function changeUrlQuery(obj, baseUrl) {
-    const query = getQueryFromUrl(null, baseUrl);
-    let url = baseUrl.split("?")[0];
-    const newQuery = Object.assign(Object.assign({}, query), obj);
+/* =========================
+ * 修改URL参数
+ * ========================= */
+function changeUrlQuery(
+    obj,
+    baseUrl
+) {
+    const query =
+        getQueryFromUrl(
+            null,
+            baseUrl
+        );
+
+    let url =
+        baseUrl.split(
+            "?"
+        )[0];
+
+    const newQuery =
+        Object.assign(
+            Object.assign(
+                {},
+                query
+            ),
+            obj
+        );
+
     let queryArr = [];
-    Object.keys(newQuery).forEach((key) => {
-        if (newQuery[key] !== undefined && newQuery[key] !== "") {
-            queryArr.push(`${key}=${encodeURIComponent(newQuery[key])}`);
+
+    Object.keys(
+        newQuery
+    ).forEach(
+        (key) => {
+            if (
+                newQuery[key] !==
+                    undefined &&
+                newQuery[key] !==
+                    ""
+            ) {
+                queryArr.push(
+                    `${key}=${encodeURIComponent(newQuery[key])}`
+                );
+            }
         }
-    });
-    return `${url}?${queryArr.join("&")}`.replace(/\?$/, "");
+    );
+
+    return `${url}?${queryArr.join("&")}`
+        .replace(
+            /\?$/,
+            ""
+        );
 }
 
+/* =========================
+ * 第一文件原有音质
+ * ========================= */
 const typeMap = {
     m4a: {
-        s: "C400",
-        e: ".m4a",
+        s:
+            "C400",
+
+        e:
+            ".m4a",
     },
+
     128: {
-        s: "M500",
-        e: ".mp3",
+        s:
+            "M500",
+
+        e:
+            ".mp3",
     },
+
     320: {
-        s: "M800",
-        e: ".mp3",
+        s:
+            "M800",
+
+        e:
+            ".mp3",
     },
+
     ape: {
-        s: "A000",
-        e: ".ape",
+        s:
+            "A000",
+
+        e:
+            ".ape",
     },
+
     flac: {
-        s: "F000",
-        e: ".flac",
+        s:
+            "F000",
+
+        e:
+            ".flac",
     },
 };
 
-async function getSourceUrl(id, type = "128") {
-    const mediaId = id;
-    let uin = "";
-    const guid = (Math.random() * 10000000).toFixed(0);
-    const typeObj = typeMap[type];
-    const file = `${typeObj.s}${id}${mediaId}${typeObj.e}`;
+/* =========================
+ * 第一文件原有VKEY
+ *
+ * 歌单/排行榜继续用这个
+ * ========================= */
+async function getSourceUrl(
+    id,
+    type = "128"
+) {
+    const mediaId =
+        id;
 
-    const url = changeUrlQuery({
-        "-": "getplaysongvkey",
-        g_tk: 5381,
-        loginUin: uin,
-        hostUin: 0,
-        format: "json",
-        inCharset: "utf8",
-        outCharset: "utf-8¬ice=0",
-        platform: "yqq.json",
-        needNewCode: 0,
-        data: JSON.stringify({
-            req_0: {
-                module: "vkey.GetVkeyServer",
-                method: "CgiGetVkey",
-                param: {
-                    filename: [file],
-                    guid: guid,
-                    songmid: [id],
-                    songtype: [0],
-                    uin: uin,
-                    loginflag: 1,
-                    platform: "20",
-                },
-            },
-            comm: {
-                uin: uin,
-                format: "json",
-                ct: 19,
-                cv: 0,
-                authst: "",
-            },
-        }),
-    }, "https://u.y.qq.com/cgi-bin/musicu.fcg");
+    let uin =
+        "";
 
-    return (await (0, axios_1.default)({
-        method: "GET",
-        url: url,
-        xsrfCookieName: "XSRF-TOKEN",
-        withCredentials: true,
-    })).data;
+    const guid =
+        (
+            Math.random() *
+            10000000
+        ).toFixed(0);
+
+    const typeObj =
+        typeMap[type];
+
+    const file =
+        `${typeObj.s}${id}${mediaId}${typeObj.e}`;
+
+    const url =
+        changeUrlQuery(
+            {
+                "-":
+                    "getplaysongvkey",
+
+                g_tk:
+                    5381,
+
+                loginUin:
+                    uin,
+
+                hostUin:
+                    0,
+
+                format:
+                    "json",
+
+                inCharset:
+                    "utf8",
+
+                outCharset:
+                    "utf-8¬ice=0",
+
+                platform:
+                    "yqq.json",
+
+                needNewCode:
+                    0,
+
+                data:
+                    JSON.stringify(
+                        {
+                            req_0:
+                                {
+                                    module:
+                                        "vkey.GetVkeyServer",
+
+                                    method:
+                                        "CgiGetVkey",
+
+                                    param:
+                                        {
+                                            filename:
+                                                [file],
+
+                                            guid:
+                                                guid,
+
+                                            songmid:
+                                                [id],
+
+                                            songtype:
+                                                [0],
+
+                                            uin:
+                                                uin,
+
+                                            loginflag:
+                                                1,
+
+                                            platform:
+                                                "20",
+                                        },
+                                },
+
+                            comm:
+                                {
+                                    uin:
+                                        uin,
+
+                                    format:
+                                        "json",
+
+                                    ct:
+                                        19,
+
+                                    cv:
+                                        0,
+
+                                    authst:
+                                        "",
+                                },
+                        }
+                    ),
+            },
+
+            "https://u.y.qq.com/cgi-bin/musicu.fcg"
+        );
+
+    return (
+        await (0, axios_1.default)({
+            method:
+                "GET",
+
+            url:
+                url,
+
+            xsrfCookieName:
+                "XSRF-TOKEN",
+
+            withCredentials:
+                true,
+        })
+    ).data;
 }
 
-/*
- * 搜索结果专用：
- * 根据 songmid 查询 QQ 的完整歌曲信息，
- * 取得该歌曲真正对应的 media_mid。
- */
-async function getSearchSongDetail(songmid) {
+/* =========================
+ * 搜索歌曲：
+ * 查询完整歌曲信息
+ *
+ * 目的：
+ * 从 songmid 找到真正
+ * 对应这首歌曲的 media_mid
+ * ========================= */
+async function getSearchSongDetail(
+    songmid
+) {
     if (!songmid) {
         return null;
     }
 
     try {
-        const res = (await (0, axios_1.default)({
-            url: "https://u.y.qq.com/cgi-bin/musicu.fcg",
-            method: "POST",
-            data: {
-                songinfo: {
-                    method: "get_song_detail_yqq",
-                    module: "music.pf_song_detail_svr",
-                    param: {
-                        song_mid: songmid,
-                        song_type: 0,
-                    },
-                },
-            },
-            headers: headers,
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })).data;
+        const res =
+            (
+                await (0,
+                axios_1.default)({
+                    url:
+                        "https://u.y.qq.com/cgi-bin/musicu.fcg",
 
-        return res &&
+                    method:
+                        "POST",
+
+                    data:
+                        {
+                            songinfo:
+                                {
+                                    method:
+                                        "get_song_detail_yqq",
+
+                                    module:
+                                        "music.pf_song_detail_svr",
+
+                                    param:
+                                        {
+                                            song_mid:
+                                                songmid,
+
+                                            song_type:
+                                                0,
+                                        },
+                                },
+                        },
+
+                    headers:
+                        headers,
+
+                    xsrfCookieName:
+                        "XSRF-TOKEN",
+
+                    withCredentials:
+                        true,
+                })
+            ).data;
+
+        if (
+            res &&
             res.songinfo &&
-            res.songinfo.data &&
-            res.songinfo.data.track_info
-            ? res.songinfo.data.track_info
-            : null;
+            res.songinfo.data
+        ) {
+            if (
+                res.songinfo.data
+                    .track_info
+            ) {
+                return (
+                    res.songinfo.data
+                        .track_info
+                );
+            }
+
+            if (
+                res.songinfo.data
+                    .trackInfo
+            ) {
+                return (
+                    res.songinfo.data
+                        .trackInfo
+                );
+            }
+
+            if (
+                res.songinfo.data
+                    .song_info
+            ) {
+                return (
+                    res.songinfo.data
+                        .song_info
+                );
+            }
+        }
+
+        return null;
     }
     catch (err) {
         return null;
     }
 }
 
-/*
- * 搜索结果专用 VKEY。
+/* =========================
+ * 搜索歌曲VKEY
  *
- * 重要：
- * filename 必须使用：
+ * 关键修复：
+ *
+ * filename =
  * 音质前缀 + media_mid + 扩展名
  *
- * songmid 只放进 param.songmid。
- */
-async function getSearchSourceUrl(songmid, mediaMid, type = "128") {
+ * songmid 单独放 param.songmid
+ *
+ * 不再：
+ * 音质前缀 + songmid + media_mid
+ * ========================= */
+async function getSearchSourceUrl(
+    songmid,
+    mediaMid,
+    type = "128"
+) {
     if (!songmid) {
         return null;
     }
 
-    let uin = "";
+    let uin =
+        "";
 
     const guid =
-        (Math.random() * 10000000).toFixed(0);
+        (
+            Math.random() *
+            10000000
+        ).toFixed(0);
 
     const typeObj =
         typeMap[type] ||
-        typeMap["128"];
+        typeMap[
+            "128"
+        ];
+
+    const finalMediaMid =
+        mediaMid ||
+        songmid;
 
     const file =
-        `${typeObj.s}${mediaMid || songmid}${typeObj.e}`;
+        `${typeObj.s}${finalMediaMid}${typeObj.e}`;
 
-    const url = changeUrlQuery({
-        "-": "getplaysongvkey",
+    const url =
+        changeUrlQuery(
+            {
+                "-":
+                    "getplaysongvkey",
 
-        g_tk: 5381,
+                g_tk:
+                    5381,
 
-        loginUin: uin,
+                loginUin:
+                    uin,
 
-        hostUin: 0,
+                hostUin:
+                    0,
 
-        format: "json",
+                format:
+                    "json",
 
-        inCharset: "utf8",
+                inCharset:
+                    "utf8",
 
-        outCharset: "utf-8",
+                outCharset:
+                    "utf-8",
 
-        platform: "yqq.json",
+                platform:
+                    "yqq.json",
 
-        needNewCode: 0,
+                needNewCode:
+                    0,
 
-        data: JSON.stringify({
-            req_0: {
-                module:
-                    "vkey.GetVkeyServer",
+                data:
+                    JSON.stringify(
+                        {
+                            req_0:
+                                {
+                                    module:
+                                        "vkey.GetVkeyServer",
+
+                                    method:
+                                        "CgiGetVkey",
+
+                                    param:
+                                        {
+                                            filename:
+                                                [file],
+
+                                            guid:
+                                                guid,
+
+                                            songmid:
+                                                [songmid],
+
+                                            songtype:
+                                                [0],
+
+                                            uin:
+                                                uin,
+
+                                            loginflag:
+                                                1,
+
+                                            platform:
+                                                "20",
+                                        },
+                                },
+
+                            comm:
+                                {
+                                    uin:
+                                        uin,
+
+                                    format:
+                                        "json",
+
+                                    ct:
+                                        19,
+
+                                    cv:
+                                        0,
+
+                                    authst:
+                                        "",
+                                },
+                        }
+                    ),
+            },
+
+            "https://u.y.qq.com/cgi-bin/musicu.fcg"
+        );
+
+    return (
+        await (0, axios_1.default)({
+            method:
+                "GET",
+
+            url:
+                url,
+
+            headers:
+                headers,
+
+            xsrfCookieName:
+                "XSRF-TOKEN",
+
+            withCredentials:
+                true,
+        })
+    ).data;
+}
+
+/* =========================
+ * 专辑
+ * ========================= */
+async function getAlbumInfo(
+    albumItem
+) {
+    const url =
+        changeUrlQuery(
+            {
+                data:
+                    JSON.stringify(
+                        {
+                            comm:
+                                {
+                                    ct:
+                                        24,
+
+                                    cv:
+                                        10000,
+                                },
+
+                            albumSonglist:
+                                {
+                                    method:
+                                        "GetAlbumSongList",
+
+                                    param:
+                                        {
+                                            albumMid:
+                                                albumItem.albumMID,
+
+                                            albumID:
+                                                0,
+
+                                            begin:
+                                                0,
+
+                                            num:
+                                                999,
+
+                                            order:
+                                                2,
+                                        },
+
+                                    module:
+                                        "music.musichallAlbum.AlbumSongList",
+                                },
+                        }
+                    ),
+            },
+
+            "https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8"
+        );
+
+    const res =
+        (
+            await (0,
+            axios_1.default)({
+                url:
+                    url,
+
+                headers:
+                    headers,
+
+                xsrfCookieName:
+                    "XSRF-TOKEN",
+
+                withCredentials:
+                    true,
+            })
+        ).data;
+
+    return {
+        musicList:
+            res.albumSonglist.data.songList
+                .filter(
+                    (_) =>
+                        validSongFilter(
+                            _.songInfo
+                        )
+                )
+                .map(
+                    (item) => {
+                        const _ =
+                            item.songInfo;
+
+                        return formatMusicItem(
+                            _
+                        );
+                    }
+                ),
+    };
+}
+
+/* =========================
+ * 歌手歌曲
+ * ========================= */
+async function getArtistSongs(
+    artistItem,
+    page
+) {
+    const url =
+        changeUrlQuery(
+            {
+                data:
+                    JSON.stringify(
+                        {
+                            comm:
+                                {
+                                    ct:
+                                        24,
+
+                                    cv:
+                                        0,
+                                },
+
+                            singer:
+                                {
+                                    method:
+                                        "get_singer_detail_info",
+
+                                    param:
+                                        {
+                                            sort:
+                                                5,
+
+                                            singermid:
+                                                artistItem.singerMID,
+
+                                            sin:
+                                                (page -
+                                                    1) *
+                                                pageSize,
+
+                                            num:
+                                                pageSize,
+                                        },
+
+                                    module:
+                                        "music.web_singer_info_svr",
+                                },
+                        }
+                    ),
+            },
+
+            "http://u.y.qq.com/cgi-bin/musicu.fcg"
+        );
+
+    const res =
+        (
+            await (0,
+            axios_1.default)({
+                url:
+                    url,
 
                 method:
-                    "CgiGetVkey",
+                    "get",
 
-                param: {
-                    filename: [file],
+                headers:
+                    headers,
 
-                    guid: guid,
+                xsrfCookieName:
+                    "XSRF-TOKEN",
 
-                    songmid: [songmid],
-
-                    songtype: [0],
-
-                    uin: uin,
-
-                    loginflag: 1,
-
-                    platform: "20",
-                },
-            },
-
-            comm: {
-                uin: uin,
-
-                format: "json",
-
-                ct: 24,
-
-                cv: 0,
-
-                authst: "",
-            },
-        }),
-    }, "https://u.y.qq.com/cgi-bin/musicu.fcg");
-
-    return (await (0, axios_1.default)({
-        method: "GET",
-
-        url: url,
-
-        headers: headers,
-
-        xsrfCookieName:
-            "XSRF-TOKEN",
-
-        withCredentials: true,
-    })).data;
-}
-
-async function getAlbumInfo(albumItem) {
-    const url = changeUrlQuery({
-        data: JSON.stringify({
-            comm: {
-                ct: 24,
-                cv: 10000,
-            },
-            albumSonglist: {
-                method: "GetAlbumSongList",
-                param: {
-                    albumMid: albumItem.albumMID,
-                    albumID: 0,
-                    begin: 0,
-                    num: 999,
-                    order: 2,
-                },
-                module: "music.musichallAlbum.AlbumSongList",
-            },
-        }),
-    }, "https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8");
-
-    const res = (await (0, axios_1.default)({
-        url: url,
-        headers: headers,
-        xsrfCookieName: "XSRF-TOKEN",
-        withCredentials: true,
-    })).data;
+                withCredentials:
+                    true,
+            })
+        ).data;
 
     return {
-        musicList: res.albumSonglist.data.songList
-            .filter((_) => validSongFilter(_.songInfo))
-            .map((item) => {
-                const _ = item.songInfo;
-                return formatMusicItem(_);
-            }),
+        isEnd:
+            res.singer.data.total_song <=
+            page * pageSize,
+
+        data:
+            res.singer.data.songlist
+                .filter(
+                    validSongFilter
+                )
+                .map(
+                    formatMusicItem
+                ),
     };
 }
 
-async function getArtistSongs(artistItem, page) {
-    const url = changeUrlQuery({
-        data: JSON.stringify({
-            comm: {
-                ct: 24,
-                cv: 0,
-            },
-            singer: {
-                method: "get_singer_detail_info",
-                param: {
-                    sort: 5,
-                    singermid: artistItem.singerMID,
-                    sin: (page - 1) * pageSize,
-                    num: pageSize,
-                },
-                module: "music.web_singer_info_svr",
-            },
-        }),
-    }, "http://u.y.qq.com/cgi-bin/musicu.fcg");
+/* =========================
+ * 歌手专辑
+ * ========================= */
+async function getArtistAlbums(
+    artistItem,
+    page
+) {
+    const url =
+        changeUrlQuery(
+            {
+                data:
+                    JSON.stringify(
+                        {
+                            comm:
+                                {
+                                    ct:
+                                        24,
 
-    const res = (await (0, axios_1.default)({
-        url: url,
-        method: "get",
-        headers: headers,
-        xsrfCookieName: "XSRF-TOKEN",
-        withCredentials: true,
-    })).data;
+                                    cv:
+                                        0,
+                                },
+
+                            singerAlbum:
+                                {
+                                    method:
+                                        "get_singer_album",
+
+                                    param:
+                                        {
+                                            singermid:
+                                                artistItem.singerMID,
+
+                                            order:
+                                                "time",
+
+                                            begin:
+                                                (page -
+                                                    1) *
+                                                pageSize,
+
+                                            num:
+                                                pageSize /
+                                                1,
+
+                                            exstatus:
+                                                1,
+                                        },
+
+                                    module:
+                                        "music.web_singer_info_svr",
+                                },
+                        }
+                    ),
+            },
+
+            "http://u.y.qq.com/cgi-bin/musicu.fcg"
+        );
+
+    const res =
+        (
+            await (0,
+            axios_1.default)({
+                url:
+                    url,
+
+                method:
+                    "get",
+
+                headers:
+                    headers,
+
+                xsrfCookieName:
+                    "XSRF-TOKEN",
+
+                withCredentials:
+                    true,
+            })
+        ).data;
 
     return {
-        isEnd: res.singer.data.total_song <= page * pageSize,
-        data: res.singer.data.songlist
-            .filter(validSongFilter)
-            .map(formatMusicItem),
+        isEnd:
+            res.singerAlbum.data.total <=
+            page * pageSize,
+
+        data:
+            res.singerAlbum.data.list.map(
+                formatAlbumItem
+            ),
     };
 }
 
-async function getArtistAlbums(artistItem, page) {
-    const url = changeUrlQuery({
-        data: JSON.stringify({
-            comm: {
-                ct: 24,
-                cv: 0,
-            },
-            singerAlbum: {
-                method: "get_singer_album",
-                param: {
-                    singermid: artistItem.singerMID,
-                    order: "time",
-                    begin: (page - 1) * pageSize,
-                    num: pageSize / 1,
-                    exstatus: 1,
-                },
-                module: "music.web_singer_info_svr",
-            },
-        }),
-    }, "http://u.y.qq.com/cgi-bin/musicu.fcg");
-
-    const res = (await (0, axios_1.default)({
-        url,
-        method: "get",
-        headers: headers,
-        xsrfCookieName: "XSRF-TOKEN",
-        withCredentials: true,
-    })).data;
-
-    return {
-        isEnd: res.singerAlbum.data.total <= page * pageSize,
-        data: res.singerAlbum.data.list.map(formatAlbumItem),
-    };
-}
-
-async function getArtistWorks(artistItem, page, type) {
-    if (type === "music") {
-        return getArtistSongs(artistItem, page);
-    }
-
-    if (type === "album") {
-        return getArtistAlbums(artistItem, page);
-    }
-}
-
-async function getLyric(musicItem) {
-    const result = (await (0, axios_1.default)({
-        url: `http://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${musicItem.songmid}&pcachetime=${new Date().getTime()}&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0`,
-        headers: { Referer: "https://y.qq.com", Cookie: "uin=" },
-        method: "get",
-        xsrfCookieName: "XSRF-TOKEN",
-        withCredentials: true,
-    })).data;
-
-    const res = JSON.parse(
-        result.replace(
-            /callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g,
-            ""
-        )
-    );
-
-    let translation;
-
-    if (res.trans) {
-        translation = he.decode(
-            CryptoJs.enc.Base64.parse(res.trans).toString(
-                CryptoJs.enc.Utf8
-            )
+async function getArtistWorks(
+    artistItem,
+    page,
+    type
+) {
+    if (
+        type ===
+        "music"
+    ) {
+        return getArtistSongs(
+            artistItem,
+            page
         );
     }
 
-    return {
-        rawLrc: he.decode(
-            CryptoJs.enc.Base64.parse(res.lyric).toString(
-                CryptoJs.enc.Utf8
+    if (
+        type ===
+        "album"
+    ) {
+        return getArtistAlbums(
+            artistItem,
+            page
+        );
+    }
+}
+
+/* =========================
+ * 歌词
+ * ========================= */
+async function getLyric(
+    musicItem
+) {
+    const result =
+        (
+            await (0,
+            axios_1.default)({
+                url:
+                    `http://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${musicItem.songmid}&pcachetime=${new Date().getTime()}&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0`,
+
+                headers:
+                    {
+                        Referer:
+                            "https://y.qq.com",
+
+                        Cookie:
+                            "uin=",
+                    },
+
+                method:
+                    "get",
+
+                xsrfCookieName:
+                    "XSRF-TOKEN",
+
+                withCredentials:
+                    true,
+            })
+        ).data;
+
+    const res =
+        JSON.parse(
+            result.replace(
+                /callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g,
+                ""
             )
-        ),
+        );
+
+    let translation;
+
+    if (
+        res.trans
+    ) {
+        translation =
+            he.decode(
+                CryptoJs.enc.Base64
+                    .parse(
+                        res.trans
+                    )
+                    .toString(
+                        CryptoJs.enc.Utf8
+                    )
+            );
+    }
+
+    return {
+        rawLrc:
+            he.decode(
+                CryptoJs.enc.Base64
+                    .parse(
+                        res.lyric
+                    )
+                    .toString(
+                        CryptoJs.enc.Utf8
+                    )
+            ),
+
         translation,
     };
 }
 
-async function importMusicSheet(urlLike) {
+/* =========================
+ * 导入歌单
+ * ========================= */
+async function importMusicSheet(
+    urlLike
+) {
     let id;
 
     if (!id) {
-        id = (
-            urlLike.match(
-                /https?:\/\/i\.y\.qq\.com\/n2\/m\/share\/details\/taoge\.html\?.*id=([0-9]+)/
-            ) || []
-        )[1];
+        id =
+            (
+                urlLike.match(
+                    /https?:\/\/i\.y\.qq\.com\/n2\/m\/share\/details\/taoge\.html\?.*id=([0-9]+)/
+                ) ||
+                []
+            )[1];
     }
 
     if (!id) {
-        id = (
-            urlLike.match(
-                /https?:\/\/y\.qq\.com\/n\/ryqq\/playlist\/([0-9]+)/
-            ) || []
-        )[1];
+        id =
+            (
+                urlLike.match(
+                    /https?:\/\/y\.qq\.com\/n\/ryqq\/playlist\/([0-9]+)/
+                ) ||
+                []
+            )[1];
     }
 
     if (!id) {
-        id = (
-            urlLike.match(/^(\d+)$/) ||
-            []
-        )[1];
+        id =
+            (
+                urlLike.match(
+                    /^(\d+)$/
+                ) ||
+                []
+            )[1];
     }
 
     if (!id) {
         return;
     }
 
-    const result = (await (0, axios_1.default)({
-        url:
-            `http://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&utf8=1&disstid=${id}&loginUin=0`,
+    const result =
+        (
+            await (0,
+            axios_1.default)({
+                url:
+                    `http://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&utf8=1&disstid=${id}&loginUin=0`,
 
-        headers: {
-            Referer:
-                "https://y.qq.com/n/yqq/playlist",
+                headers:
+                    {
+                        Referer:
+                            "https://y.qq.com/n/yqq/playlist",
 
-            Cookie: "uin=",
-        },
+                        Cookie:
+                            "uin=",
+                    },
 
-        method: "get",
+                method:
+                    "get",
 
-        xsrfCookieName:
-            "XSRF-TOKEN",
+                xsrfCookieName:
+                    "XSRF-TOKEN",
 
-        withCredentials: true,
-    })).data;
+                withCredentials:
+                    true,
+            })
+        ).data;
 
-    const res = JSON.parse(
-        result.replace(
-            /callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g,
-            ""
-        )
-    );
+    const res =
+        JSON.parse(
+            result.replace(
+                /callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g,
+                ""
+            )
+        );
 
     return res.cdlist[0].songlist
-        .filter(validSongFilter)
-        .map(formatMusicItem);
+        .filter(
+            validSongFilter
+        )
+        .map(
+            formatMusicItem
+        );
 }
 
+/* =========================
+ * 排行榜
+ * ========================= */
 async function getTopLists() {
-    const list = await (0, axios_1.default)({
-        url:
-            "https://u.y.qq.com/cgi-bin/musicu.fcg?_=1577086820633&data=%7B%22comm%22%3A%7B%22g_tk%22%3A5381%2C%22uin%22%3A123456%2C%22format%22%3A%22json%22%2C%22inCharset%22%3A%22utf-8%22%2C%22outCharset%22%3A%22utf-8%22%2C%22notice%22%3A0%2C%22platform%22%3A%22h5%22%2C%22needNewCode%22%3A1%2C%22ct%22%3A23%2C%22cv%22%3A0%7D%2C%22topList%22%3A%7B%22module%22%3A%22musicToplist.ToplistInfoServer%22%2C%22method%22%3A%22GetAll%22%2C%22param%22%3A%7B%7D%7D%7D",
+    const list =
+        await (0,
+        axios_1.default)({
+            url:
+                "https://u.y.qq.com/cgi-bin/musicu.fcg?_=1577086820633&data=%7B%22comm%22%3A%7B%22g_tk%22%3A5381%2C%22uin%22%3A123456%2C%22format%22%3A%22json%22%2C%22inCharset%22%3A%22utf-8%22%2C%22outCharset%22%3A%22utf-8%22%2C%22notice%22%3A0%2C%22platform%22%3A%22h5%22%2C%22needNewCode%22%3A1%2C%22ct%22%3A23%2C%22cv%22%3A0%7D%2C%22topList%22%3A%7B%22module%22%3A%22musicToplist.ToplistInfoServer%22%2C%22method%22%3A%22GetAll%22%2C%22param%22%3A%7B%7D%7D%7D",
 
-        method: "get",
+            method:
+                "get",
 
-        headers: {
-            Cookie: "uin=",
-        },
+            headers:
+                {
+                    Cookie:
+                        "uin=",
+                },
 
-        xsrfCookieName:
-            "XSRF-TOKEN",
+            xsrfCookieName:
+                "XSRF-TOKEN",
 
-        withCredentials: true,
-    });
+            withCredentials:
+                true,
+        });
 
     return list.data.topList.data.group.map(
         (e) => ({
-            title: e.groupName,
+            title:
+                e.groupName,
 
-            data: e.toplist.map(
-                (_) => ({
-                    id: _.topId,
-                    description: _.intro,
-                    title: _.title,
-                    period: _.period,
-                    coverImg:
-                        _.headPicUrl ||
-                        _.frontPicUrl,
-                })
-            ),
+            data:
+                e.toplist.map(
+                    (_) => ({
+                        id:
+                            _.topId,
+
+                        description:
+                            _.intro,
+
+                        title:
+                            _.title,
+
+                        period:
+                            _.period,
+
+                        coverImg:
+                            _.headPicUrl ||
+                            _.frontPicUrl,
+                    })
+                ),
         })
     );
 }
 
-async function getTopListDetail(topListItem) {
+/* =========================
+ * 排行榜详情
+ * ========================= */
+async function getTopListDetail(
+    topListItem
+) {
     var _a;
 
-    const res = await (0, axios_1.default)({
-        url:
-            `https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&data=%7B%22detail%22%3A%7B%22module%22%3A%22musicToplist.ToplistInfoServer%22%2C%22method%22%3A%22GetDetail%22%2C%22param%22%3A%7B%22topId%22%3A${topListItem.id}%2C%22offset%22%3A0%2C%22num%22%3A100%2C%22period%22%3A%22${(_a = topListItem.period) !== null && _a !== void 0 ? _a : ""}%22%7D%7D%2C%22comm%22%3A%7B%22ct%22%3A24%2C%22cv%22%3A0%7D%7D`,
+    const res =
+        await (0,
+        axios_1.default)({
+            url:
+                `https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&data=%7B%22detail%22%3A%7B%22module%22%3A%22musicToplist.ToplistInfoServer%22%2C%22method%22%3A%22GetDetail%22%2C%22param%22%3A%7B%22topId%22%3A${topListItem.id}%2C%22offset%22%3A0%2C%22num%22%3A100%2C%22period%22%3A%22${(_a = topListItem.period) !== null && _a !== void 0 ? _a : ""}%22%7D%7D%2C%22comm%22%3A%7B%22ct%22%3A24%2C%22cv%22%3A0%7D%7D`,
 
-        method: "get",
+            method:
+                "get",
 
-        headers: {
-            Cookie: "uin=",
-        },
+            headers:
+                {
+                    Cookie:
+                        "uin=",
+                },
 
-        xsrfCookieName:
-            "XSRF-TOKEN",
+            xsrfCookieName:
+                "XSRF-TOKEN",
 
-        withCredentials: true,
-    });
+            withCredentials:
+                true,
+        });
 
     return Object.assign(
-        Object.assign({}, topListItem),
+        Object.assign(
+            {},
+            topListItem
+        ),
         {
             musicList:
                 res.data.detail.data.songInfoList
-                    .filter(validSongFilter)
-                    .map(formatMusicItem),
+                    .filter(
+                        validSongFilter
+                    )
+                    .map(
+                        formatMusicItem
+                    ),
         }
     );
 }
 
+/* =========================
+ * 推荐歌单标签
+ * ========================= */
 async function getRecommendSheetTags() {
-    const res = (
-        await axios_1.default.get(
-            "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_tag_conf.fcg?format=json&inCharset=utf8&outCharset=utf-8",
-            {
-                headers: {
-                    referer:
-                        "https://y.qq.com/",
-                },
-            }
-        )
-    ).data.data.categories;
+    const res =
+        (
+            await axios_1.default.get(
+                "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_tag_conf.fcg?format=json&inCharset=utf8&outCharset=utf-8",
 
-    const data = res.slice(1).map(
-        (_) => ({
-            title: _.categoryGroupName,
+                {
+                    headers:
+                        {
+                            referer:
+                                "https://y.qq.com/",
+                        },
+                }
+            )
+        ).data.data.categories;
 
-            data: _.items.map(
-                (tag) => ({
-                    id: tag.categoryId,
-                    title: tag.categoryName,
-                })
-            ),
-        })
-    );
+    const data =
+        res.slice(1).map(
+            (_) => ({
+                title:
+                    _.categoryGroupName,
+
+                data:
+                    _.items.map(
+                        (tag) => ({
+                            id:
+                                tag.categoryId,
+
+                            title:
+                                tag.categoryName,
+                        })
+                    ),
+            })
+        );
 
     const pinned = [];
 
-    for (let d of data) {
-        if (d.data.length) {
-            pinned.push(d.data[0]);
+    for (
+        let d of data
+    ) {
+        if (
+            d.data.length
+        ) {
+            pinned.push(
+                d.data[0]
+            );
         }
     }
 
@@ -743,115 +1576,151 @@ async function getRecommendSheetTags() {
     };
 }
 
-async function getRecommendSheetsByTag(tag, page) {
-    const pageSize = 20;
+/* =========================
+ * 推荐歌单
+ * ========================= */
+async function getRecommendSheetsByTag(
+    tag,
+    page
+) {
+    const pageSize =
+        20;
 
-    const rawRes = (
-        await axios_1.default.get(
-            "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg",
-            {
-                headers: {
-                    referer:
-                        "https://y.qq.com/",
-                },
+    const rawRes =
+        (
+            await axios_1.default.get(
+                "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg",
 
-                params: {
-                    inCharset: "utf8",
+                {
+                    headers:
+                        {
+                            referer:
+                                "https://y.qq.com/",
+                        },
 
-                    outCharset:
-                        "utf-8",
+                    params:
+                        {
+                            inCharset:
+                                "utf8",
 
-                    sortId: 5,
+                            outCharset:
+                                "utf-8",
 
-                    categoryId:
-                        (tag === null ||
-                        tag === void 0
-                            ? void 0
-                            : tag.id) ||
-                        "10000000",
+                            sortId:
+                                5,
 
-                    sin:
-                        pageSize *
-                        (page - 1),
+                            categoryId:
+                                (
+                                    tag === null ||
+                                    tag === void 0
+                                        ? void 0
+                                        : tag.id
+                                ) ||
+                                "10000000",
 
-                    ein:
-                        page *
-                        pageSize -
-                        1,
-                },
-            }
-        )
-    ).data;
+                            sin:
+                                pageSize *
+                                (page - 1),
 
-    const res = JSON.parse(
-        rawRes.replace(
-            /callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g,
-            ""
-        )
-    ).data;
+                            ein:
+                                page *
+                                pageSize -
+                                1,
+                        },
+                }
+            )
+        ).data;
+
+    const res =
+        JSON.parse(
+            rawRes.replace(
+                /callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g,
+                ""
+            )
+        ).data;
 
     const isEnd =
         res.sum <=
-        page * pageSize;
+        page *
+            pageSize;
 
-    const data = res.list.map(
-        (item) => {
-            var _a, _b;
+    const data =
+        res.list.map(
+            (item) => {
+                var _a, _b;
 
-            return {
-                id: item.dissid,
+                return {
+                    id:
+                        item.dissid,
 
-                createTime:
-                    item.createTime,
+                    createTime:
+                        item.createTime,
 
-                title:
-                    item.dissname,
+                    title:
+                        item.dissname,
 
-                artwork:
-                    item.imgurl,
+                    artwork:
+                        item.imgurl,
 
-                description:
-                    item.introduction,
+                    description:
+                        item.introduction,
 
-                playCount:
-                    item.listennum,
+                    playCount:
+                        item.listennum,
 
-                artist:
-                    (_b =
-                        (_a =
-                            item.creator) ===
-                        null ||
-                        _a === void 0
-                        ? void 0
-                        : _a.name) !==
-                        null &&
-                    _b !== void 0
-                        ? _b
-                        : "",
-            };
-        }
-    );
+                    artist:
+                        (
+                            _b =
+                                (
+                                    _a =
+                                        item.creator
+                                ) ===
+                                    null ||
+                                _a ===
+                                    void 0
+                                    ? void 0
+                                    : _a.name
+                        ) !==
+                            null &&
+                        _b !==
+                            void 0
+                            ? _b
+                            : "",
+                };
+            }
+        );
 
     return {
         isEnd,
+
         data,
     };
 }
 
-async function getMusicSheetInfo(sheet, page) {
+/* =========================
+ * 歌单详情
+ * ========================= */
+async function getMusicSheetInfo(
+    sheet,
+    page
+) {
     const data =
         await importMusicSheet(
             sheet.id
         );
 
     return {
-        isEnd: true,
+        isEnd:
+            true,
 
         musicList:
             data,
     };
 }
 
+/* =========================
+ * 导出
+ * ========================= */
 module.exports = {
     platform:
         "QQ音乐",
@@ -868,47 +1737,70 @@ module.exports = {
     cacheControl:
         "no-cache",
 
-    hints: {
-        importMusicSheet: [
-            "QQ音乐APP：自建歌单-分享-分享到微信好友/QQ好友；然后点开并复制链接，直接粘贴即可",
+    hints:
+        {
+            importMusicSheet:
+                [
+                    "QQ音乐APP：自建歌单-分享-分享到微信好友/QQ好友；然后点开并复制链接，直接粘贴即可",
 
-            "H5：复制URL并粘贴，或者直接输入纯数字歌单ID即可",
+                    "H5：复制URL并粘贴，或者直接输入纯数字歌单ID即可",
 
-            "导入过程中会过滤掉所有VIP/试听/收费音乐，导入时间和歌单大小有关，请耐心等待",
+                    "导入过程中会过滤掉所有VIP/试听/收费音乐，导入时间和歌单大小有关，请耐心等待",
+                ],
+        },
+
+    primaryKey:
+        [
+            "id",
+            "songmid",
         ],
-    },
 
-    primaryKey: [
-        "id",
-        "songmid",
-    ],
-
-    supportedSearchType: [
-        "music",
-        "album",
-        "sheet",
-        "artist",
-        "lyric",
-    ],
+    supportedSearchType:
+        [
+            "music",
+            "album",
+            "sheet",
+            "artist",
+            "lyric",
+        ],
 
     async search(
         query,
         page,
         type
     ) {
-        const typeMap = {
-            0: "music",
-            1: "artist",
-            2: "album",
-            3: "sheet",
-            7: "lyric",
+        const typeMap =
+            {
+                0:
+                    "music",
 
-            music: "music",
-            album: "album",
-            artist: "artist",
-            sheet: "sheet",
-            lyric: "lyric",
-        };
+                1:
+                    "artist",
+
+                2:
+                    "album",
+
+                3:
+                    "sheet",
+
+                7:
+                    "lyric",
+
+                music:
+                    "music",
+
+                album:
+                    "album",
+
+                artist:
+                    "artist",
+
+                sheet:
+                    "sheet",
+
+                lyric:
+                    "lyric",
+            };
 
         const searchType =
             typeMap[type];
@@ -964,45 +1856,57 @@ module.exports = {
         }
 
         return {
-            isEnd: true,
+            isEnd:
+                true,
 
-            data: [],
+            data:
+                [],
         };
     },
 
+    /* =========================
+     * 播放
+     * ========================= */
     async getMediaSource(
         musicItem,
         quality
     ) {
-        let purl = "";
+        let purl =
+            "";
 
-        let domain = "";
+        let domain =
+            "";
 
-        let type = "128";
+        let type =
+            "128";
 
         if (
             quality ===
             "standard"
         ) {
-            type = "320";
+            type =
+                "320";
         }
         else if (
             quality ===
             "high"
         ) {
-            type = "m4a";
+            type =
+                "m4a";
         }
         else if (
             quality ===
             "super"
         ) {
-            type = "flac";
+            type =
+                "flac";
         }
 
         /*
-         * ==============================
-         * 搜歌结果专用播放适配
-         * ==============================
+         * 搜索结果歌曲：
+         *
+         * 先查询真实 media_mid，
+         * 再用旧版 VKEY。
          */
         if (
             musicItem &&
@@ -1014,91 +1918,170 @@ module.exports = {
                 musicItem.mid ||
                 musicItem.id;
 
-            const detail =
-                await getSearchSongDetail(
-                    songmid
-                );
+            if (
+                songmid
+            ) {
+                const detail =
+                    await getSearchSongDetail(
+                        songmid
+                    );
 
-            const detailSongMid =
-                (detail &&
-                    detail.mid) ||
-                songmid;
+                /*
+                 * 优先使用详情接口返回的
+                 * 真正 mid。
+                 */
+                const detailSongMid =
+                    detail &&
+                    (
+                        detail.mid ||
+                        detail.songmid
+                    )
+                        ? (
+                            detail.mid ||
+                            detail.songmid
+                        )
+                        : songmid;
 
-            const mediaMid =
-                detail &&
-                detail.file &&
-                detail.file.media_mid;
+                /*
+                 * 关键：
+                 * 正版歌曲真正用于文件名的
+                 * media_mid。
+                 */
+                let mediaMid =
+                    detail &&
+                    detail.file &&
+                    (
+                        detail.file.media_mid ||
+                        detail.file.mediaMid
+                    );
 
-            if (detailSongMid) {
-                try {
-                    const result =
-                        await getSearchSourceUrl(
-                            detailSongMid,
-                            mediaMid,
-                            type
-                        );
+                /*
+                 * 兼容另一种字段结构。
+                 */
+                if (
+                    !mediaMid &&
+                    detail &&
+                    detail.file
+                ) {
+                    mediaMid =
+                        detail.file.media_mid ||
+                        detail.file.mediaMid ||
+                        detail.file.mid;
+                }
 
-                    if (
-                        result &&
-                        result.req_0 &&
-                        result.req_0.data &&
-                        result.req_0.data.midurlinfo &&
-                        result.req_0.data
-                            .midurlinfo.length
-                    ) {
-                        const info =
+                /*
+                 * 某些 QQ 返回结构把 file
+                 * 嵌套在其他对象里。
+                 */
+                if (
+                    !mediaMid &&
+                    detail &&
+                    detail.data &&
+                    detail.data.file
+                ) {
+                    mediaMid =
+                        detail.data.file.media_mid ||
+                        detail.data.file.mediaMid ||
+                        detail.data.file.mid;
+                }
+
+                /*
+                 * 找到 media_mid 后，
+                 * 使用搜索歌曲专用 VKEY。
+                 */
+                if (
+                    detailSongMid
+                ) {
+                    try {
+                        const result =
+                            await getSearchSourceUrl(
+                                detailSongMid,
+
+                                mediaMid,
+
+                                type
+                            );
+
+                        if (
+                            result &&
+                            result.req_0 &&
+                            result.req_0.data &&
                             result.req_0.data
-                                .midurlinfo.find(
+                                .midurlinfo
+                        ) {
+                            const infoList =
+                                result.req_0.data
+                                    .midurlinfo;
+
+                            /*
+                             * 优先精确匹配
+                             * 当前歌曲 MID。
+                             */
+                            const info =
+                                infoList.find(
                                     (item) =>
+                                        item &&
                                         item.songmid ===
                                             detailSongMid &&
                                         item.purl
                                 ) ||
-                            result.req_0.data
-                                .midurlinfo.find(
+
+                                /*
+                                 * 再找有 purl 的第一条。
+                                 */
+                                infoList.find(
                                     (item) =>
+                                        item &&
                                         item.purl
                                 );
 
-                        if (
-                            info &&
-                            info.purl
-                        ) {
-                            const sip =
-                                result.req_0.data.sip ||
-                                [];
+                            if (
+                                info &&
+                                info.purl
+                            ) {
+                                const sip =
+                                    result.req_0.data
+                                        .sip || [];
 
-                            const searchDomain =
-                                sip.find(
-                                    (i) =>
-                                        !i.startsWith(
-                                            "http://ws"
-                                        )
-                                ) ||
-                                sip[0] ||
-                                "";
+                                const searchDomain =
+                                    sip.find(
+                                        (i) =>
+                                            i &&
+                                            !i.startsWith(
+                                                "http://ws"
+                                            )
+                                    ) ||
+                                    sip[0] ||
+                                    "";
 
-                            return {
-                                url:
-                                    `${searchDomain}${info.purl}`,
-                            };
+                                if (
+                                    searchDomain
+                                ) {
+                                    return {
+                                        url:
+                                            `${searchDomain}${info.purl}`,
+                                    };
+                                }
+                            }
                         }
                     }
-                }
-                catch (err) {
-                    /*
-                     * 搜歌专用 VKEY 失败后，
-                     * 回退旧版播放。
-                     */
+                    catch (err) {
+                        /*
+                         * 搜索歌曲 VKEY
+                         * 失败时回退旧播放。
+                         */
+                    }
                 }
             }
         }
 
         /*
-         * ==============================
+         * =========================
          * 第一文件原有播放逻辑
-         * 歌单 / 排行榜继续使用
-         * ==============================
+         *
+         * 歌单、排行榜继续使用
+         * 原来的 getSourceUrl。
+         * =========================
          */
         const playMid =
             musicItem.songmid ||
@@ -1123,11 +2106,16 @@ module.exports = {
                     .purl;
         }
 
-        if (!purl) {
+        if (
+            !purl
+        ) {
             return null;
         }
 
-        if (domain === "") {
+        if (
+            domain ===
+            ""
+        ) {
             domain =
                 result.req_0.data.sip.find(
                     (i) =>
