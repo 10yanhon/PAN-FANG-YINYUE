@@ -24,6 +24,26 @@ function formatMusicItem(_) {
         albummid: albummid,
     };
 }
+function fixSearchMusicItem(item) {
+    return {
+        ...item,
+        id: item.id || item.songmid || item.mid,
+        songmid:
+            item.songmid ||
+            item.mid ||
+            item.songId ||
+            item.id,
+
+        media_mid:
+            item.media_mid ||
+            item.songmid ||
+            item.mid,
+
+        mid:
+            item.mid ||
+            item.songmid
+    };
+}
 function formatAlbumItem(_) {
     return {
         id: _.albumID || _.albumid,
@@ -113,9 +133,12 @@ async function searchBase(query, page, type) {
 
 async function searchMusic(query, page) {
     const songs = await searchBase(query, page, 0);
+
     return {
         isEnd: songs.isEnd,
-        data: songs.data.map(formatMusicItem),
+        data: songs.data
+            .map(formatMusicItem)
+            .map(fixSearchMusicItem),
     };
 }
 
@@ -579,7 +602,13 @@ module.exports = {
         else if (quality === "super") {
             type = "flac";
         }
-        const result = await getSourceUrl(musicItem.songmid, type);
+        const playMid =
+    musicItem.songmid ||
+    musicItem.media_mid ||
+    musicItem.mid ||
+    musicItem.id;
+
+const result = await getSourceUrl(playMid, type);
         if (result.req_0 && result.req_0.data && result.req_0.data.midurlinfo) {
             purl = result.req_0.data.midurlinfo[0].purl;
         }
