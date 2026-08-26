@@ -3,39 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = require("axios");
 const CryptoJs = require("crypto-js");
 const he = require("he");
-
 const pageSize = 20;
 
-/*
- * 搜歌专用请求头
- * 来自第二个文件的正常搜歌逻辑
- */
-const searchHeaders = {
+const headers = {
     referer: "https://y.qq.com/",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
     Cookie: "qm_keyst=; uin=;",
 };
 
-/*
- * 歌曲格式化
- * 使用第二个文件正常搜歌版本的结构
- * 同时保留第一文件原有的歌曲字段
- */
 function formatMusicItem(_) {
     var _a, _b, _c;
-
-    const albumid =
-        _.albumid ||
-        ((_a = _.album) === null || _a === void 0 ? void 0 : _a.id);
-
-    const albummid =
-        _.albummid ||
-        ((_b = _.album) === null || _b === void 0 ? void 0 : _b.mid);
-
-    const albumname =
-        _.albumname ||
-        ((_c = _.album) === null || _c === void 0 ? void 0 : _c.title);
-
+    const albumid = _.albumid || ((_a = _.album) === null || _a === void 0 ? void 0 : _a.id);
+    const albummid = _.albummid || ((_b = _.album) === null || _b === void 0 ? void 0 : _b.mid);
+    const albumname = _.albumname || ((_c = _.album) === null || _c === void 0 ? void 0 : _c.title);
     return {
         isVip: (_.pay.pay_play === 0 || _.pay.payplay === 0) ? "0" : "1",
         id: _.id || _.songid,
@@ -57,8 +37,7 @@ function formatAlbumItem(_) {
         id: _.albumID || _.albumid,
         albumMID: _.albumMID || _.album_mid,
         title: _.albumName || _.album_name,
-        artwork:
-            _.albumPic ||
+        artwork: _.albumPic ||
             `https://y.gtimg.cn/music/photo_new/T002R300x300M000${_.albumMID || _.album_mid}.jpg`,
         date: _.publicTime || _.pub_time,
         singerID: _.singerID || _.singer_id,
@@ -87,49 +66,26 @@ const searchTypeMap = {
     12: "mv",
 };
 
-/*
- * 保留第一文件原有的 validSongFilter
- * 但不再用于“普通搜歌”结果过滤。
- * 第一文件其它歌单、排行榜等功能继续使用。
- */
-const headers = {
-    referer: "https://y.qq.com",
-    "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
-    Cookie: "uin=",
-};
-
-const validSongFilter = (item) => {
-    return item.pay.pay_play === 0 || item.pay.payplay === 0;
-};
-
-/*
- * =========================
- * 第二文件的正常搜歌核心
- * =========================
- */
 async function searchBase(query, page, type) {
-    const res = (
-        await (0, axios_1.default)({
-            url: "https://u.y.qq.com/cgi-bin/musicu.fcg",
-            method: "POST",
-            data: {
-                req_1: {
-                    method: "DoSearchForQQMusicDesktop",
-                    module: "music.search.SearchCgiService",
-                    param: {
-                        num_per_page: pageSize,
-                        page_num: page,
-                        query: query,
-                        search_type: type,
-                    },
+    const res = (await (0, axios_1.default)({
+        url: "https://u.y.qq.com/cgi-bin/musicu.fcg",
+        method: "POST",
+        data: {
+            req_1: {
+                method: "DoSearchForQQMusicDesktop",
+                module: "music.search.SearchCgiService",
+                param: {
+                    num_per_page: pageSize,
+                    page_num: page,
+                    query: query,
+                    search_type: type,
                 },
             },
-            headers: searchHeaders,
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+        },
+        headers: headers,
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 
     return {
         isEnd: res.req_1.data.meta.sum <= page * pageSize,
@@ -139,22 +95,14 @@ async function searchBase(query, page, type) {
 
 async function searchMusic(query, page) {
     const songs = await searchBase(query, page, 0);
-
     return {
         isEnd: songs.isEnd,
-
-        /*
-         * 关键：
-         * 第二文件正常搜歌版本没有再执行 validSongFilter，
-         * 直接格式化搜索结果。
-         */
         data: songs.data.map(formatMusicItem),
     };
 }
 
 async function searchAlbum(query, page) {
     const albums = await searchBase(query, page, 2);
-
     return {
         isEnd: albums.isEnd,
         data: albums.data.map(formatAlbumItem),
@@ -163,7 +111,6 @@ async function searchAlbum(query, page) {
 
 async function searchArtist(query, page) {
     const artists = await searchBase(query, page, 1);
-
     return {
         isEnd: artists.isEnd,
         data: artists.data.map(formatArtistItem),
@@ -172,10 +119,8 @@ async function searchArtist(query, page) {
 
 async function searchMusicSheet(query, page) {
     const musicSheet = await searchBase(query, page, 3);
-
     return {
         isEnd: musicSheet.isEnd,
-
         data: musicSheet.data.map((item) => ({
             title: item.dissname,
             createAt: item.createtime,
@@ -191,48 +136,33 @@ async function searchMusicSheet(query, page) {
 
 async function searchLyric(query, page) {
     const songs = await searchBase(query, page, 7);
-
     return {
         isEnd: songs.isEnd,
-
-        data: songs.data.map((it) =>
-            Object.assign(
-                Object.assign({}, formatMusicItem(it)),
-                {
-                    rawLrcTxt: it.content,
-                }
-            )
-        ),
+        data: songs.data.map((it) => (Object.assign(Object.assign({}, formatMusicItem(it)), {
+            rawLrcTxt: it.content
+        }))),
     };
 }
-
-/*
- * =========================
- * 第一文件原有逻辑：保留
- * =========================
- */
 
 function getQueryFromUrl(key, search) {
     try {
         const sArr = search.split("?");
         let s = "";
-
         if (sArr.length > 1) {
             s = sArr[1];
-        } else {
+        }
+        else {
             return key ? undefined : {};
         }
-
         const querys = s.split("&");
         const result = {};
-
         querys.forEach((item) => {
             const temp = item.split("=");
             result[temp[0]] = decodeURIComponent(temp[1]);
         });
-
         return key ? result[key] : result;
-    } catch (err) {
+    }
+    catch (err) {
         return key ? "" : {};
     }
 }
@@ -240,29 +170,16 @@ function getQueryFromUrl(key, search) {
 function changeUrlQuery(obj, baseUrl) {
     const query = getQueryFromUrl(null, baseUrl);
     let url = baseUrl.split("?")[0];
-
-    const newQuery = Object.assign(
-        Object.assign({}, query),
-        obj
-    );
-
+    const newQuery = Object.assign(Object.assign({}, query), obj);
     let queryArr = [];
-
     Object.keys(newQuery).forEach((key) => {
         if (newQuery[key] !== undefined && newQuery[key] !== "") {
-            queryArr.push(
-                `${key}=${encodeURIComponent(newQuery[key])}`
-            );
+            queryArr.push(`${key}=${encodeURIComponent(newQuery[key])}`);
         }
     });
-
     return `${url}?${queryArr.join("&")}`.replace(/\?$/, "");
 }
 
-/*
- * 第一文件原来的播放音质类型映射
- * 保留，不使用第二文件的外部播放接口
- */
 const typeMap = {
     m4a: {
         s: "C400",
@@ -286,107 +203,86 @@ const typeMap = {
     },
 };
 
-/*
- * 第一文件原来的 QQ vkey 播放源
- * 保留！
- */
 async function getSourceUrl(id, type = "128") {
     const mediaId = id;
     let uin = "";
-
     const guid = (Math.random() * 10000000).toFixed(0);
     const typeObj = typeMap[type];
-
     const file = `${typeObj.s}${id}${mediaId}${typeObj.e}`;
 
-    const url = changeUrlQuery(
-        {
-            "-": "getplaysongvkey",
-            g_tk: 5381,
-            loginUin: uin,
-            hostUin: 0,
-            format: "json",
-            inCharset: "utf8",
-            outCharset: "utf-8¬ice=0",
-            platform: "yqq.json",
-            needNewCode: 0,
-
-            data: JSON.stringify({
-                req_0: {
-                    module: "vkey.GetVkeyServer",
-                    method: "CgiGetVkey",
-                    param: {
-                        filename: [file],
-                        guid: guid,
-                        songmid: [id],
-                        songtype: [0],
-                        uin: uin,
-                        loginflag: 1,
-                        platform: "20",
-                    },
-                },
-
-                comm: {
+    const url = changeUrlQuery({
+        "-": "getplaysongvkey",
+        g_tk: 5381,
+        loginUin: uin,
+        hostUin: 0,
+        format: "json",
+        inCharset: "utf8",
+        outCharset: "utf-8¬ice=0",
+        platform: "yqq.json",
+        needNewCode: 0,
+        data: JSON.stringify({
+            req_0: {
+                module: "vkey.GetVkeyServer",
+                method: "CgiGetVkey",
+                param: {
+                    filename: [file],
+                    guid: guid,
+                    songmid: [id],
+                    songtype: [0],
                     uin: uin,
-                    format: "json",
-                    ct: 19,
-                    cv: 0,
-                    authst: "",
+                    loginflag: 1,
+                    platform: "20",
                 },
-            }),
-        },
-        "https://u.y.qq.com/cgi-bin/musicu.fcg"
-    );
+            },
+            comm: {
+                uin: uin,
+                format: "json",
+                ct: 19,
+                cv: 0,
+                authst: "",
+            },
+        }),
+    }, "https://u.y.qq.com/cgi-bin/musicu.fcg");
 
-    return (
-        await (0, axios_1.default)({
-            method: "GET",
-            url: url,
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+    return (await (0, axios_1.default)({
+        method: "GET",
+        url: url,
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 }
 
 async function getAlbumInfo(albumItem) {
-    const url = changeUrlQuery(
-        {
-            data: JSON.stringify({
-                comm: {
-                    ct: 24,
-                    cv: 10000,
+    const url = changeUrlQuery({
+        data: JSON.stringify({
+            comm: {
+                ct: 24,
+                cv: 10000,
+            },
+            albumSonglist: {
+                method: "GetAlbumSongList",
+                param: {
+                    albumMid: albumItem.albumMID,
+                    albumID: 0,
+                    begin: 0,
+                    num: 999,
+                    order: 2,
                 },
+                module: "music.musichallAlbum.AlbumSongList",
+            },
+        }),
+    }, "https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8");
 
-                albumSonglist: {
-                    method: "GetAlbumSongList",
-
-                    param: {
-                        albumMid: albumItem.albumMID,
-                        albumID: 0,
-                        begin: 0,
-                        num: 999,
-                        order: 2,
-                    },
-
-                    module: "music.musichallAlbum.AlbumSongList",
-                },
-            }),
-        },
-        "https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8"
-    );
-
-    const res = (
-        await (0, axios_1.default)({
-            url: url,
-            headers: headers,
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+    const res = (await (0, axios_1.default)({
+        url: url,
+        headers: headers,
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 
     return {
         musicList: res.albumSonglist.data.songList
-            .filter((_) => validSongFilter(_.songInfo))
+            .filter((_) => _.songInfo.pay.pay_play === 0 || _.songInfo.pay.payplay === 0)
             .map((item) => {
                 const _ = item.songInfo;
                 return formatMusicItem(_);
@@ -395,86 +291,69 @@ async function getAlbumInfo(albumItem) {
 }
 
 async function getArtistSongs(artistItem, page) {
-    const url = changeUrlQuery(
-        {
-            data: JSON.stringify({
-                comm: {
-                    ct: 24,
-                    cv: 0,
+    const url = changeUrlQuery({
+        data: JSON.stringify({
+            comm: {
+                ct: 24,
+                cv: 0,
+            },
+            singer: {
+                method: "get_singer_detail_info",
+                param: {
+                    sort: 5,
+                    singermid: artistItem.singerMID,
+                    sin: (page - 1) * pageSize,
+                    num: pageSize,
                 },
+                module: "music.web_singer_info_svr",
+            },
+        }),
+    }, "http://u.y.qq.com/cgi-bin/musicu.fcg");
 
-                singer: {
-                    method: "get_singer_detail_info",
-
-                    param: {
-                        sort: 5,
-                        singermid: artistItem.singerMID,
-                        sin: (page - 1) * pageSize,
-                        num: pageSize,
-                    },
-
-                    module: "music.web_singer_info_svr",
-                },
-            }),
-        },
-        "http://u.y.qq.com/cgi-bin/musicu.fcg"
-    );
-
-    const res = (
-        await (0, axios_1.default)({
-            url: url,
-            method: "get",
-            headers: headers,
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+    const res = (await (0, axios_1.default)({
+        url: url,
+        method: "get",
+        headers: headers,
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 
     return {
         isEnd: res.singer.data.total_song <= page * pageSize,
-
         data: res.singer.data.songlist
-            .filter(validSongFilter)
+            .filter((item) => item.pay.pay_play === 0 || item.pay.payplay === 0)
             .map(formatMusicItem),
     };
 }
 
 async function getArtistAlbums(artistItem, page) {
-    const url = changeUrlQuery(
-        {
-            data: JSON.stringify({
-                comm: {
-                    ct: 24,
-                    cv: 0,
+    const url = changeUrlQuery({
+        data: JSON.stringify({
+            comm: {
+                ct: 24,
+                cv: 0,
+            },
+            singerAlbum: {
+                method: "get_singer_album",
+                param: {
+                    singermid: artistItem.singerMID,
+                    order: "time",
+                    begin: (page - 1) * pageSize,
+                    num: pageSize / 1,
+                    exstatus: 1,
                 },
+                module: "music.web_singer_info_svr",
+            },
+        }),
+    }, "http://u.y.qq.com/cgi-bin/musicu.fcg");
 
-                singerAlbum: {
-                    method: "get_singer_album",
-
-                    param: {
-                        singermid: artistItem.singerMID,
-                        order: "time",
-                        begin: (page - 1) * pageSize,
-                        num: pageSize / 1,
-                        exstatus: 1,
-                    },
-
-                    module: "music.web_singer_info_svr",
-                },
-            }),
-        },
-        "http://u.y.qq.com/cgi-bin/musicu.fcg"
-    );
-
-    const res = (
-        await (0, axios_1.default)({
-            url: url,
-            method: "get",
-            headers: headers,
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+    const res = (await (0, axios_1.default)({
+        url: url,
+        method: "get",
+        headers: headers,
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 
     return {
         isEnd: res.singerAlbum.data.total <= page * pageSize,
@@ -486,25 +365,22 @@ async function getArtistWorks(artistItem, page, type) {
     if (type === "music") {
         return getArtistSongs(artistItem, page);
     }
-
     if (type === "album") {
         return getArtistAlbums(artistItem, page);
     }
 }
 
 async function getLyric(musicItem) {
-    const result = (
-        await (0, axios_1.default)({
-            url: `http://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${musicItem.songmid}&pcachetime=${new Date().getTime()}&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0`,
-            headers: {
-                Referer: "https://y.qq.com",
-                Cookie: "uin=",
-            },
-            method: "get",
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+    const result = (await (0, axios_1.default)({
+        url: `http://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${musicItem.songmid}&pcachetime=${new Date().getTime()}&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0`,
+        headers: {
+            Referer: "https://y.qq.com",
+            Cookie: "uin="
+        },
+        method: "get",
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 
     const res = JSON.parse(
         result.replace(
@@ -562,18 +438,16 @@ async function importMusicSheet(urlLike) {
         return;
     }
 
-    const result = (
-        await (0, axios_1.default)({
-            url: `http://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&utf8=1&disstid=${id}&loginUin=0`,
-            headers: {
-                Referer: "https://y.qq.com/n/yqq/playlist",
-                Cookie: "uin=",
-            },
-            method: "get",
-            xsrfCookieName: "XSRF-TOKEN",
-            withCredentials: true,
-        })
-    ).data;
+    const result = (await (0, axios_1.default)({
+        url: `http://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&utf8=1&disstid=${id}&loginUin=0`,
+        headers: {
+            Referer: "https://y.qq.com/n/yqq/playlist",
+            Cookie: "uin="
+        },
+        method: "get",
+        xsrfCookieName: "XSRF-TOKEN",
+        withCredentials: true,
+    })).data;
 
     const res = JSON.parse(
         result.replace(
@@ -583,7 +457,7 @@ async function importMusicSheet(urlLike) {
     );
 
     return res.cdlist[0].songlist
-        .filter(validSongFilter)
+        .filter((item) => item.pay.pay_play === 0 || item.pay.payplay === 0)
         .map(formatMusicItem);
 }
 
@@ -600,7 +474,6 @@ async function getTopLists() {
 
     return list.data.topList.data.group.map((e) => ({
         title: e.groupName,
-
         data: e.toplist.map((_) => ({
             id: _.topId,
             description: _.intro,
@@ -628,27 +501,24 @@ async function getTopListDetail(topListItem) {
         Object.assign({}, topListItem),
         {
             musicList: res.data.detail.data.songInfoList
-                .filter(validSongFilter)
+                .filter((item) => item.pay.pay_play === 0 || item.pay.payplay === 0)
                 .map(formatMusicItem),
         }
     );
 }
 
 async function getRecommendSheetTags() {
-    const res = (
-        await axios_1.default.get(
-            "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_tag_conf.fcg?format=json&inCharset=utf8&outCharset=utf-8",
-            {
-                headers: {
-                    referer: "https://y.qq.com/",
-                },
-            }
-        )
-    ).data.data.categories;
+    const res = (await axios_1.default.get(
+        "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_tag_conf.fcg?format=json&inCharset=utf8&outCharset=utf-8",
+        {
+            headers: {
+                referer: "https://y.qq.com/",
+            },
+        }
+    )).data.data.categories;
 
     const data = res.slice(1).map((_) => ({
         title: _.categoryGroupName,
-
         data: _.items.map((tag) => ({
             id: tag.categoryId,
             title: tag.categoryName,
@@ -672,27 +542,24 @@ async function getRecommendSheetTags() {
 async function getRecommendSheetsByTag(tag, page) {
     const pageSize = 20;
 
-    const rawRes = (
-        await axios_1.default.get(
-            "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg",
-            {
-                headers: {
-                    referer: "https://y.qq.com/",
-                },
-
-                params: {
-                    inCharset: "utf8",
-                    outCharset: "utf-8",
-                    sortId: 5,
-                    categoryId:
-                        (tag === null || tag === void 0 ? void 0 : tag.id) ||
-                        "10000000",
-                    sin: pageSize * (page - 1),
-                    ein: page * pageSize - 1,
-                },
-            }
-        )
-    ).data;
+    const rawRes = (await axios_1.default.get(
+        "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg",
+        {
+            headers: {
+                referer: "https://y.qq.com/",
+            },
+            params: {
+                inCharset: "utf8",
+                outCharset: "utf-8",
+                sortId: 5,
+                categoryId:
+                    (tag === null || tag === void 0 ? void 0 : tag.id) ||
+                    "10000000",
+                sin: pageSize * (page - 1),
+                ein: page * pageSize - 1,
+            },
+        }
+    )).data;
 
     const res = JSON.parse(
         rawRes.replace(
@@ -738,20 +605,12 @@ async function getMusicSheetInfo(sheet, page) {
     };
 }
 
-/*
- * =========================
- * 第一文件原来的播放入口
- * 保留！
- * =========================
- */
 module.exports = {
     platform: "QQ音乐",
     author: "yfh198010@outlook.com",
     version: "0.2.2-alpha.3",
-    srcUrl:
-        "https://gitee.com/maotoumao/MusicFreePlugins/raw/v0.1/dist/qq/index.js",
+    srcUrl: "https://gitee.com/maotoumao/MusicFreePlugins/raw/v0.1/dist/qq/index.js",
     cacheControl: "no-cache",
-
     hints: {
         importMusicSheet: [
             "QQ音乐APP：自建歌单-分享-分享到微信好友/QQ好友；然后点开并复制链接，直接粘贴即可",
@@ -759,21 +618,9 @@ module.exports = {
             "导入过程中会过滤掉所有VIP/试听/收费音乐，导入时间和歌单大小有关，请耐心等待",
         ],
     },
-
     primaryKey: ["id", "songmid"],
+    supportedSearchType: ["music", "album", "sheet", "artist", "lyric"],
 
-    supportedSearchType: [
-        "music",
-        "album",
-        "sheet",
-        "artist",
-        "lyric",
-    ],
-
-    /*
-     * 搜索入口：
-     * 使用第二文件正常搜歌逻辑
-     */
     async search(query, page, type) {
         if (type === "music") {
             return await searchMusic(query, page);
@@ -796,11 +643,6 @@ module.exports = {
         }
     },
 
-    /*
-     * =========================
-     * 这里必须使用第一文件原来的播放逻辑
-     * =========================
-     */
     async getMediaSource(musicItem, quality) {
         let purl = "";
         let domain = "";
@@ -808,19 +650,15 @@ module.exports = {
 
         if (quality === "standard") {
             type = "320";
-        } else if (quality === "high") {
+        }
+        else if (quality === "high") {
             type = "m4a";
-        } else if (quality === "super") {
+        }
+        else if (quality === "super") {
             type = "flac";
         }
 
-        /*
-         * 第一文件原来的 QQ vkey 播放源
-         */
-        const result = await getSourceUrl(
-            musicItem.songmid,
-            type
-        );
+        const result = await getSourceUrl(musicItem.songmid, type);
 
         if (
             result.req_0 &&
@@ -847,24 +685,13 @@ module.exports = {
         };
     },
 
-    /*
-     * 第一文件原有其它功能全部保留
-     */
     getLyric,
-
     getAlbumInfo,
-
     getArtistWorks,
-
     importMusicSheet,
-
     getTopLists,
-
     getTopListDetail,
-
     getRecommendSheetTags,
-
     getRecommendSheetsByTag,
-
     getMusicSheetInfo,
 };
