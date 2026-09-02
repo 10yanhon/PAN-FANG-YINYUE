@@ -453,7 +453,7 @@ async function getMediaSource(musicItem, quality) {
     };
 }
 module.exports = {
-    platform: "指纹音乐",
+    platform: "小秋音乐",
     author: "Huibq",
     version: "0.3.0",
     srcUrl: "https://fastly.jsdelivr.net/gh/Huibq/keep-alive/Music_Free/xiaoqiu.js",
